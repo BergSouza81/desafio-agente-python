@@ -66,7 +66,7 @@ class SessionStore:
                 return history[-limit:]
             return history.copy()
 
-    async def clear_session(self, session_id: str) -> None:
+    async def clear(self, session_id: str) -> None:
         """Remove o histórico de uma sessão específica."""
         async with self._lock:
             self._sessions.pop(session_id, None)

@@ -13,7 +13,25 @@ _HEADING_PATTERN = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
 
 
 class KBServiceError(Exception):
-    """Exceção customizada para erros no serviço de Knowledge Base."""
+    """Exceção base para erros no serviço de Knowledge Base."""
+
+    pass
+
+
+class KBUnavailableError(KBServiceError):
+    """Erro de conexão ou gateway (502/504) na KB."""
+
+    pass
+
+
+class KBTimeoutError(KBServiceError):
+    """Timeout ao consultar a KB."""
+
+    pass
+
+
+class KBNotFoundError(KBServiceError):
+    """KB não encontrada (404)."""
 
     pass
 
@@ -65,7 +83,10 @@ class KBService:
             Texto Markdown cru da Knowledge Base.
 
         Raises:
-            KBServiceError: Em caso de falha de conexão ou HTTP.
+            KBNotFoundError: Se a KB retornar 404.
+            KBUnavailableError: Se a KB retornar 502/504 ou erro de conexão.
+            KBTimeoutError: Se a requisição exceder o timeout.
+            KBServiceError: Para outros erros HTTP.
         """
         if self._is_cache_valid():
             logger.debug("Retornando conteúdo da KB do cache em memória")
@@ -78,18 +99,26 @@ class KBService:
             async with httpx.AsyncClient(timeout=self._request_timeout) as client:
                 response = await client.get(kb_url)
                 response.raise_for_status()
+        except httpx.TimeoutException as exc:
+            logger.error("Timeout ao buscar KB: %s", exc)
+            raise KBTimeoutError(f"Timeout ao buscar KB: {exc}") from exc
         except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code
+            if status == 404:
+                logger.error("KB não encontrada (404)")
+                raise KBNotFoundError("Base de conhecimento não encontrada.") from exc
+            if status in (502, 503, 504):
+                logger.error("KB indisponível (HTTP %s)", status)
+                raise KBUnavailableError(f"KB indisponível (HTTP {status}).") from exc
             logger.error(
                 "Erro HTTP %s ao buscar KB: %s",
-                exc.response.status_code,
+                status,
                 exc.response.text,
             )
-            raise KBServiceError(
-                f"Erro HTTP {exc.response.status_code} ao buscar KB"
-            ) from exc
+            raise KBServiceError(f"Erro HTTP {status} ao buscar KB") from exc
         except httpx.RequestError as exc:
             logger.error("Erro de conexão ao buscar KB: %s", exc)
-            raise KBServiceError(f"Erro de conexão ao buscar KB: {exc}") from exc
+            raise KBUnavailableError(f"Erro de conexão ao buscar KB: {exc}") from exc
 
         self._cache_content = response.text
         self._cache_timestamp = time.monotonic()
@@ -153,4 +182,37 @@ class KBService:
 
         logger.warning("Seção '%s' não encontrada na KB", section_name)
         return None
+
+    async def search(self, query: str, top_k: int = 5) -> list[dict[str, str | int]]:
+        """
+        Busca as seções mais relevantes para a query usando keyword matching simples.
+
+        Args:
+            query: Texto da pergunta do usuário.
+            top_k: Número máximo de seções a retornar.
+
+        Returns:
+            Lista das top_k seções mais relevantes.
+        """
+        sections = await self.get_sections()
+        if not sections:
+            return []
+
+        query_terms = set(re.findall(r"\b\w+\b", query.lower()))
+        if not query_terms:
+            return sections[:top_k]
+
+        scored: list[tuple[float, dict[str, str | int]]] = []
+        for section in sections:
+            title = str(section.get("section", "")).lower()
+            content = str(section.get("content", "")).lower()
+            text = f"{title} {content}"
+            section_terms = set(re.findall(r"\b\w+\b", text))
+            overlap = len(query_terms & section_terms)
+            # Normaliza pelo tamanho da query para dar prioridade a matches mais completos
+            score = overlap / max(len(query_terms), 1)
+            scored.append((score, section))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [s for score, s in scored[:top_k] if score > 0]
 

@@ -17,8 +17,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/messages", tags=["Messages"])
 
-# Instância singleton do SessionStore (em memória)
+# Instâncias singleton (em memória)
 _session_store: Optional[SessionStore] = None
+_orchestrator: Optional[OrchestratorService] = None
 
 
 def get_session_store() -> SessionStore:
@@ -29,51 +30,34 @@ def get_session_store() -> SessionStore:
     return _session_store
 
 
-def get_orchestrator() -> OrchestratorService:
+def get_orchestrator(
+    session_store: SessionStore = Depends(get_session_store),
+) -> OrchestratorService:
     """Dependency injection para o serviço orquestrador."""
-    return OrchestratorService()
+    global _orchestrator
+    if _orchestrator is None:
+        _orchestrator = OrchestratorService(session_store=session_store)
+    return _orchestrator
 
 
 @router.post("", response_model=MessageResponse)
 async def create_message(
     request: MessageRequest,
     orchestrator: OrchestratorService = Depends(get_orchestrator),
-    session_store: SessionStore = Depends(get_session_store),
 ) -> MessageResponse:
     """
     Recebe uma mensagem do usuário, processa via orquestrador RAG
     e retorna a resposta com fontes.
 
-    Se um session_id for enviado, o histórico curto da conversa
-    é mantido em memória para fornecer contexto adicional ao LLM.
+    O histórico da conversa é mantido automaticamente pelo orquestrador
+    quando um session_id é fornecido (ou gerado).
     """
     try:
-        # 1. Recuperar histórico da sessão, se houver session_id
-        history: list[dict[str, str]] = []
-        if request.session_id:
-            history = await session_store.get_history(request.session_id)
-
-        # 2. Processar a mensagem pelo orquestrador
         result = await orchestrator.process(
             message=request.message,
             session_id=request.session_id,
-            history=history,
         )
 
-        # 3. Registrar a interação no histórico da sessão
-        if request.session_id:
-            await session_store.add_message(
-                session_id=request.session_id,
-                role="user",
-                content=request.message,
-            )
-            await session_store.add_message(
-                session_id=request.session_id,
-                role="assistant",
-                content=result["answer"],
-            )
-
-        # 4. Montar resposta no formato contratado
         sources = [SourceMessage(**s) for s in result.get("sources", [])]
         return MessageResponse(
             answer=result["answer"],

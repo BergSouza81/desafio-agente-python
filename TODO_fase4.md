@@ -8,5 +8,5 @@
 - [x] 4. Criar `app/api/v1/__init__.py` e `app/api/v1/endpoints.py` (POST /messages com DI, session, error handling)
 - [x] 5. Atualizar `app/main.py` (título "Python Agent Challenge", incluir novo router)
 - [x] 6. Compilar/verificar código
-- [ ] 7. Commit e push
+- [x] 7. Commit e push
 

@@ -5,6 +5,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     """Configurações da aplicação carregadas de variáveis de ambiente."""
 
+    environment: str = Field(default="production", description="Ambiente de execução (development/production)")
     llm_provider: str = Field(default="openai", description="Provedor do LLM")
     llm_model: str = Field(default="gpt-4o-mini", description="Modelo do LLM")
     llm_api_key: SecretStr = Field(description="Chave de API do LLM")
