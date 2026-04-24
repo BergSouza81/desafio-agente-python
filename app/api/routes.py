@@ -11,11 +11,11 @@ def get_orchestrator() -> OrchestratorService:
 
 
 @router.post("", response_model=QueryResponse)
-def query(
+async def query(
     request: QueryRequest,
     orchestrator: OrchestratorService = Depends(get_orchestrator),
 ) -> QueryResponse:
     """Recebe uma pergunta e retorna a resposta processada pelo orquestrador RAG."""
-    answer = orchestrator.process(request.question)
+    answer = await orchestrator.process(request.question)
     return QueryResponse(answer=answer)
 

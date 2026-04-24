@@ -1,7 +1,8 @@
 import logging
+from typing import Optional
 
 from app.core.config import settings
-from app.tools.search import KBSearchTool
+from app.tools.kb_service import KBService, KBServiceError
 
 logger = logging.getLogger(__name__)
 
@@ -14,10 +15,10 @@ class OrchestratorService:
     e a geração de resposta via LLM.
     """
 
-    def __init__(self, search_tool: KBSearchTool | None = None) -> None:
-        self.search_tool = search_tool or KBSearchTool()
+    def __init__(self, kb_service: Optional[KBService] = None) -> None:
+        self._kb_service = kb_service or KBService()
 
-    def process(self, question: str) -> str:
+    async def process(self, question: str) -> str:
         """
         Processa uma pergunta através do pipeline RAG.
 
@@ -29,12 +30,19 @@ class OrchestratorService:
         """
         logger.info("Processando pergunta: %s", question)
 
-        context = self.search_tool.search(question)
-
-        if context is None:
+        try:
+            sections = await self._kb_service.get_sections()
+        except KBServiceError:
+            logger.exception("Falha ao recuperar contexto da KB")
             return "Não foi possível recuperar contexto da base de conhecimento."
+
+        if not sections:
+            return "Base de conhecimento está vazia ou sem seções identificáveis."
 
         # TODO: Integrar com LLM usando settings.llm_provider, settings.llm_model, etc.
         # A chave de API deve ser acessada via: settings.llm_api_key.get_secret_value()
-        return f"Resposta baseada no contexto: {context}"
+        context = "\n\n".join(
+            f"### {s['section']}\n{s['content']}" for s in sections
+        )
+        return f"Resposta baseada no contexto:\n{context}"
 
