@@ -30,7 +30,10 @@ class OrchestratorService:
         self._llm_client = llm_client or LLMClient()
 
     async def process(
-        self, message: str, session_id: Optional[str] = None
+        self,
+        message: str,
+        session_id: Optional[str] = None,
+        history: Optional[list[dict[str, str]]] = None,
     ) -> dict[str, str | list[dict[str, str]]]:
         """
         Processa uma mensagem através do pipeline RAG completo.
@@ -38,6 +41,7 @@ class OrchestratorService:
         Args:
             message: Pergunta ou mensagem do usuário.
             session_id: Identificador opcional da sessão.
+            history: Histórico curto de mensagens da sessão, se houver.
 
         Returns:
             Dicionário contendo 'answer' e 'sources'.
@@ -61,7 +65,7 @@ class OrchestratorService:
 
         # 2. Montar prompt e chamar LLM
         context = self._build_context(sections)
-        system_prompt = self._build_system_prompt(context)
+        system_prompt = self._build_system_prompt(context, history)
 
         try:
             raw_answer = await self._llm_client.chat(
@@ -86,9 +90,12 @@ class OrchestratorService:
         )
 
     @staticmethod
-    def _build_system_prompt(context: str) -> str:
+    def _build_system_prompt(
+        context: str,
+        history: Optional[list[dict[str, str]]] = None,
+    ) -> str:
         """Constrói o system prompt rigoroso para o LLM."""
-        return (
+        prompt_parts = [
             "Você é um assistente especializado que responde "
             "ESTRITAMENTE com base no contexto fornecido abaixo.\n\n"
             "REGRAS:\n"
@@ -98,9 +105,19 @@ class OrchestratorService:
             "3. Ao final da sua resposta, adicione uma linha exatamente "
             "neste formato: [Fonte: Nome da Seção]\n"
             "4. Se a resposta não estiver no contexto, diga: "
-            "'Não encontrei essa informação na base de conhecimento.'\n\n"
-            f"CONTEXTO:\n{context}"
-        )
+            "'Não encontrei essa informação na base de conhecimento.'\n",
+        ]
+
+        if history:
+            prompt_parts.append("\nHISTÓRICO DA CONVERSA:\n")
+            for entry in history:
+                role_label = "Usuário" if entry["role"] == "user" else "Assistente"
+                prompt_parts.append(f"{role_label}: {entry['content']}\n")
+            prompt_parts.append("\n")
+
+        prompt_parts.append(f"CONTEXTO:\n{context}")
+
+        return "".join(prompt_parts)
 
     @classmethod
     def _extract_sources(
