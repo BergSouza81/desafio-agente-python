@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   api:
     build: .
@@ -9,6 +7,10 @@ services:
     env_file:
       - .env
     volumes:
+      # Mount do código-fonte para hot-reload em desenvolvimento
       - .:/app
+      # Volume anônimo evita que a venv da máquina host sobrescreva o container
+      - /app/venv
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     restart: unless-stopped
 

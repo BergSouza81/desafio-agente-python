@@ -1,11 +1,23 @@
 FROM python:3.11-slim
 
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
 WORKDIR /app
+
+# Cria usuário não-root para segurança
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
+
+# Ajusta permissões
+RUN chown -R appuser:appgroup /app
+USER appuser
 
 EXPOSE 8000
 
