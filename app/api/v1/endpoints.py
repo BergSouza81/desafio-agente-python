@@ -15,7 +15,7 @@ from app.services.session_store import SessionStore
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/messages", tags=["Messages"])
+router = APIRouter(tags=["Messages"])
 
 # Instâncias singleton (em memória)
 _session_store: Optional[SessionStore] = None
@@ -40,7 +40,7 @@ def get_orchestrator(
     return _orchestrator
 
 
-@router.post("", response_model=MessageResponse)
+@router.post("/messages", response_model=MessageResponse)
 async def create_message(
     request: MessageRequest,
     orchestrator: OrchestratorService = Depends(get_orchestrator),
@@ -62,6 +62,7 @@ async def create_message(
         return MessageResponse(
             answer=result["answer"],
             sources=sources,
+            session_id=result.get("session_id"),
         )
 
     except Exception as exc:

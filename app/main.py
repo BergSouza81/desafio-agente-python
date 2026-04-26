@@ -11,7 +11,7 @@ app = FastAPI(
 )
 
 app.include_router(api_router, prefix="/api/v1")
-app.include_router(messages_router, prefix="/api/v1")
+app.include_router(messages_router)
 
 
 @app.get("/health", tags=["Health"])

@@ -28,4 +28,8 @@ class MessageResponse(BaseModel):
         default_factory=list,
         description="Lista de fontes utilizadas na resposta",
     )
+    session_id: Optional[str] = Field(
+        default=None,
+        description="Identificador da sessão de conversa",
+    )
 

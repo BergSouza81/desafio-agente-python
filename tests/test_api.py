@@ -72,7 +72,7 @@ class TestQueryEndpoint:
 
 
 class TestMessagesEndpoint:
-    """Testes do endpoint /api/v1/messages (Fase 4)."""
+    """Testes do endpoint /messages (Fase 4)."""
 
     @pytest.mark.asyncio
     async def test_create_message_success(self, async_client: AsyncClient) -> None:
@@ -84,7 +84,7 @@ class TestMessagesEndpoint:
         )
         app.dependency_overrides[get_orchestrator] = lambda: mock
         response = await async_client.post(
-            "/api/v1/messages",
+            "/messages",
             json={"message": "Como funciona?"},
         )
 
@@ -99,7 +99,7 @@ class TestMessagesEndpoint:
         mock = _mock_orchestrator(return_value={"answer": "OK", "sources": []})
         app.dependency_overrides[get_orchestrator] = lambda: mock
         response = await async_client.post(
-            "/api/v1/messages",
+            "/messages",
             json={"message": "Olá", "session_id": "sess-123"},
         )
 
@@ -110,13 +110,13 @@ class TestMessagesEndpoint:
 
     @pytest.mark.asyncio
     async def test_create_message_empty_body(self, async_client: AsyncClient) -> None:
-        response = await async_client.post("/api/v1/messages", json={})
+        response = await async_client.post("/messages", json={})
         assert response.status_code == 422  # Unprocessable Entity
 
     @pytest.mark.asyncio
     async def test_create_message_validation_error(self, async_client: AsyncClient) -> None:
         response = await async_client.post(
-            "/api/v1/messages",
+            "/messages",
             json={"message": 123},  # message deve ser string
         )
         assert response.status_code == 422
@@ -126,7 +126,7 @@ class TestMessagesEndpoint:
         mock = _mock_orchestrator(side_effect=RuntimeError("Boom"))
         app.dependency_overrides[get_orchestrator] = lambda: mock
         response = await async_client.post(
-            "/api/v1/messages",
+            "/messages",
             json={"message": "Teste"},
         )
 

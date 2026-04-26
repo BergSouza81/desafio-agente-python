@@ -94,20 +94,20 @@ class OrchestratorService:
             )
         except (KBTimeoutError, asyncio.TimeoutError):
             session_logger.error("Timeout ao buscar KB")
-            return {"answer": "O serviço está lento. Tente novamente.", "sources": []}
+            return {"answer": "O serviço está lento. Tente novamente.", "sources": [], "session_id": session_id}
         except KBNotFoundError:
             session_logger.error("KB não encontrada")
-            return {"answer": "Base de conhecimento não encontrada.", "sources": []}
+            return {"answer": "Base de conhecimento não encontrada.", "sources": [], "session_id": session_id}
         except KBUnavailableError:
             session_logger.error("KB indisponível")
-            return {"answer": "O serviço está lento. Tente novamente.", "sources": []}
+            return {"answer": "O serviço está lento. Tente novamente.", "sources": [], "session_id": session_id}
         except KBServiceError:
             session_logger.exception("Falha ao recuperar contexto da KB")
-            return {"answer": "Não encontrei informação suficiente na base para responder essa pergunta.", "sources": []}
+            return {"answer": "Não encontrei informação suficiente na base para responder essa pergunta.", "sources": [], "session_id": session_id}
 
         if not sections:
             session_logger.warning("Acionando Fallback: nenhuma seção relevante encontrada")
-            return {"answer": "Não encontrei informação suficiente na base para responder essa pergunta.", "sources": []}
+            return {"answer": "Não encontrei informação suficiente na base para responder essa pergunta.", "sources": [], "session_id": session_id}
 
         session_logger.info("Contexto encontrado: %d seções relevantes", len(sections))
 
@@ -134,13 +134,13 @@ class OrchestratorService:
             )
         except (LLMTimeoutError, asyncio.TimeoutError):
             session_logger.error("Timeout ao chamar LLM")
-            return {"answer": "O serviço está lento. Tente novamente.", "sources": []}
+            return {"answer": "O serviço está lento. Tente novamente.", "sources": [], "session_id": session_id}
         except LLMRateLimitError:
             session_logger.error("Rate limit no LLM")
-            return {"answer": "Muitas requisições. Aguarde um momento.", "sources": []}
+            return {"answer": "Muitas requisições. Aguarde um momento.", "sources": [], "session_id": session_id}
         except LLMClientError:
             session_logger.exception("Erro ao chamar LLM")
-            return {"answer": "Não encontrei informação suficiente na base para responder essa pergunta.", "sources": []}
+            return {"answer": "Não encontrei informação suficiente na base para responder essa pergunta.", "sources": [], "session_id": session_id}
 
         # 6. Extrair fontes com múltiplas tentativas + fallback por overlap
         answer, sources = self._extract_sources(raw_answer, sections)
@@ -150,7 +150,7 @@ class OrchestratorService:
         await self._session_store.add_message(session_id, "assistant", answer)
 
         session_logger.info("Resposta processada com %d fonte(s)", len(sources))
-        return {"answer": answer, "sources": sources}
+        return {"answer": answer, "sources": sources, "session_id": session_id}
 
     @staticmethod
     def _build_context(sections: list[dict[str, str | int]]) -> str:
